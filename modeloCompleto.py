@@ -9,45 +9,49 @@ mpl.style.use('seaborn')
 # ============================ JUNTAMOS LOS TRES MODELOS ===================================
 
 # ============================== VARIABLES INICIALES =======================================
-N =  100_000
-N_trabajadores =  N * 0.1   #para SEIR trabajadores
-camas_hospital = N / 1000          #para hospital
-camas_icu = N /5000          #para hospital
+N =  8_000_000                # Población total
+N_trabajadores =  N * 0.013  #para SEIR trabajadores
+camas_hospital = N / 4000          #para hospital
+camas_icu = N /12000          #para hospital
 
-I0 = 0
-E0 = 1
-S0 = N - E0
+# Inicialización de valores iniciales poblacionales
+
+I0 = 1
+E0 = 0
+S0 = N - I0
 R0 = 0
 M0 = 0
 
 Y0_p = (S0, E0, I0, R0, M0)
 
-CE = 1.5
+CE = 1.5                    #valor usado por profesor
 fraccion_muertos = 0.116    #dato obtenido de la tasa de mortalidad del covid-19
-tiempo_recuperacion = 3     #duracion de la infeccion
-f = 14
+tiempo_recuperacion = 9     #duracion de la infeccion
+f = 14                      #tiempo en que un individuo pasa de latente a infeccioso
 
-I0_trabajadores = 0
-E0_trabajadores = 1
-S0_trabajadores = N_trabajadores - E0_trabajadores
+#Valores iniciales para modelo trabajadores
+I0_trabajadores = 1
+E0_trabajadores = 0
+S0_trabajadores = N_trabajadores - I0_trabajadores
 R0_trabajadores = 0
 M0_trabajadores = 0
 
 Y0_t = (S0_trabajadores, E0_trabajadores, I0_trabajadores, R0_trabajadores, M0_trabajadores)
 
-multiplicador_contacto = 3
+multiplicador_contacto = 3  
 
-pacientes_trabajador = 9    #9 pacientes por trabajador
-infectados_hospital = 0.1
+pacientes_trabajador = 9            #9 pacientes por trabajador
+infectados_hospital = 0.15           #Fracción de infectados que deben ser hospitalizados
 
-fracc_muertes_espera = 0.15
-fracc_recuperacion_espera = 0.05
-fraccion_icu = 0.1
-tiempo_estadia = 5
-fracc_muertes_icu = 0.3
-tiempo_estadia_icu = 3
-fracc_muertes_hosp = 0.15
+fracc_muertes_espera = 0.15         #Fracción de personas que mueren en espera
+fracc_recuperacion_espera = 0.05    #Fracción de personas que se recuperan en espera
+fraccion_icu = 0.33                  #Fracción de hospitalizados que deben ser trasladados a icu
+tiempo_estadia = 12                  #Tiempo de hospitalización
+fracc_muertes_icu = 0.3             #Fracción de muertes de personas en icu
+tiempo_estadia_icu = 3              #Tiempo de estadia en icu
+fracc_muertes_hosp = 0.12           #Fracción de muertes de individuos hospitalizados
 
+#Valores iniciales para el sistema hospitalario
 espera = 0
 hospitalizados = 0
 icu = 0
@@ -64,8 +68,6 @@ def complete_model(t, y):
     # ========= SEIR POBLACIONAL ================
     β = CE / N
     λ = β * infectados
-    # beta = CE / N
-    # lambdA = beta * infectados
 
     # Flujos
     ER = susceptibles * λ                   #flujo latentes
@@ -77,8 +79,6 @@ def complete_model(t, y):
     # ========= SEIR TRABAJADORES ================
     β_t = CE / N_trabajadores
     λ_t = β_t * infectados_t * multiplicador_contacto
-    # delta_t = CE / N_trabajadores
-    # lambda_t = delta_t * infectados_t * multiplicador_contacto
 
     # Flujos
     ER_t = susceptibles_t * λ_t                   #flujo latentes
@@ -89,9 +89,11 @@ def complete_model(t, y):
     trabajadores_sanos = susceptibles_t + latentes_t + recuperados_t
     # ========= HOSPITAL ================
 
+    #Número total de personas que el hospital puede tratar
     capacidad_hosp_trab = trabajadores_sanos * pacientes_trabajador
     camas_hosp_disp = camas_hospital - hospitalizados
 
+    #Máximo número de personas que pueden ser admitidas en un día
     capacidad_admision = min(capacidad_hosp_trab - hospitalizados - icu, camas_hosp_disp)
     camas_disp_icu = camas_icu - icu
 
@@ -100,6 +102,7 @@ def complete_model(t, y):
     llegando_espera = infectados * infectados_hospital
     muertos_esp = espera * fracc_muertes_espera
     recuperados_esp = espera * fracc_recuperacion_espera
+    #Se admite a todos los que están esperando o a los que se pueden acomodar
     admitidos_dia = min(capacidad_admision, espera)
 
     # Hospitalizados
@@ -131,16 +134,10 @@ def complete_model(t, y):
 
     return (ds, de, di, dr, dm, ds_t, de_t, di_t, dr_t, dm_t, desp, dhosp, dicu)
 
-ts = 300
+ts = 200
 sol = solve_ivp(complete_model, [0,ts], Y0, t_eval=np.arange(0,ts,0.125), max_step=0.5)
 
-# plt.plot(sol.t, sol.y.T, label=['S', 'E', 'I', 'R', 'M',])
-# plt.plot(sol.t, sol.y.T, label=['S_T', 'E_T', 'I_T', 'R_T', 'M_T'])
-# plt.plot(sol.t, sol.y.T, label=['Esp', 'Hosp', 'Icu'])
 plt.plot(sol.t, sol.y.T, label=['S', 'E', 'I', 'R', 'M','S_T', 'E_T', 'I_T', 'R_T', 'M_T', 'Esp', 'Hosp', 'Icu'])
-# plt.legend(['S', 'E', 'I', 'R', 'M'],loc='upper right')
-# plt.legend(['S_T', 'E_T', 'I_T', 'R_T', 'M_T'],loc='upper right')
-# plt.legend(['Esp', 'Hosp', 'Icu'],loc='upper right')
 plt.legend(['S', 'E', 'I', 'R', 'M','S_T', 'E_T', 'I_T', 'R_T', 'M_T', 'Esp', 'Hosp', 'Icu'],loc='upper right')
-plt.title('Completo')
+plt.title('Modelo Poblacional-Trabajadores-Hospital')
 plt.show()
